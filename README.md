@@ -16,7 +16,11 @@ The list below contains a list of existing Function IDs registered within Microc
 | SBI_EXT_IHC_CTX_INIT | 0x00 | Initialize  a communication channel within the Inter-Hart Communication (IHC) subsystem | MPFS (G5SOC)|
 | SBI_EXT_IHC_SEND     | 0x01 | Send a message to an AMP context using the Mi-V Inter-Hart Communication (IHC) subsystem | MPFS (G5SOC) |
 | SBI_EXT_IHC_RECEIVE  | 0x02 | Receive a message from an AMP context using the Mi-V Inter-Hart Communication (IHC) subsystem | MPFS (G5SOC) |
+| SBI_EXT_RPROC_STATE  | 0x03 | Checks if the AMP context firmware was started by the HSS (early boot) or using remoteproc in Linux (late boot) | MPFS (G5SOC) |
+| SBI_EXT_RPROC_START  | 0x04 | Load/Start the remote AMP context firmware firmware using the remoreproc framework in Linux| MPFS (G5SOC) |
+| SBI_EXT_RPROC_STOP   | 0x05 | Stop the firmware running in the remote AMP context by setting the associated hart(s) in wfi| MPFS (G5SOC) |
 | SBI_EXT_HSS_REBOOT   | 0x10 | Perform a reboot command                                     | MPFS (G5SOC) |
+
 
 ## Registering new Microchip Function IDs (FIDs)
 
