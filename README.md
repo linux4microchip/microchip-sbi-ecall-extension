@@ -39,41 +39,92 @@ entry should specify:
 - FID description
 - Platform(s) that support the FID
 
+
+## Function ID Descriptions
+
+Per the specifications, SBI functions must return a pair of values in `a0` and
+`a1`, with `a0` returning an error code. This is analogous to returning the C
+structure:
+
+```c
+struct sbiret {
+    long error;
+    long value;
+};
+```
+
+Please refer to the [RISC-V Supervisor Binary Interface specification][1] for
+more information, including a [list of standard error codes][3].
+The descriptions in this document are accompanied by a C pseudocode function
+prototypes, where the arguments represent values passed in `a0` and `a1`
+respectively.
+
 [1]: https://github.com/riscv-non-isa/riscv-sbi-doc/blob/master/riscv-sbi.adoc
 [2]: https://github.com/riscv/riscv-isa-manual/releases/download/Priv-v1.12/riscv-privileged-20211203.pdf
-
-## Function ID Details
+[3]: https://github.com/riscv-non-isa/riscv-sbi-doc/blob/master/riscv-sbi.adoc#table_standard_sbi_errors
 
 ### SBI_EXT_IHC_CTX_INIT (FID 0x0)
 
-Initialize a communication channel within the Inter-Hart Communication (IHC)
-subsystem.
+```c
+struct sbiret ihc_context_init(unsigned long context_id);
+```
+
+Initialise a communication channel within the Inter-Hart Communication (IHC)
+subsystem for the context denoted by `context_id`.
 
 ### SBI_EXT_IHC_SEND (FID 0x01)
 
-Send a message to an AMP context using the Mi-V Inter-Hart Communication (IHC)
-subsystem.
+```c
+struct sbiret ihc_send_to_remote_context(unsigned long context_id, unsigned long message_addr);
+```
+
+Send a message, located at `message_addr` in memory, to the AMP context denoted
+by `context_id` using the Mi-V Inter-Hart Communication (IHC) subsystem.
 
 ### SBI_EXT_IHC_RECEIVE (FID 0x02)
 
-Receive a message from an AMP context using the Mi-V Inter-Hart Communication
-(IHC) subsystem.
+```c
+struct sbiret ihc_receive_from_remote_context(unsigned long context_id, unsigned long message_addr);
+```
+
+Receive a message from the AMP context denoted by `context_id` using the Mi-V
+Inter-Hart Communication (IHC) subsystem and store it at `message_addr` in
+memory.
 
 ### SBI_EXT_RPROC_STATE (FID 0x03)
 
-Checks if the AMP context firmware was started by the HSS (early boot) or using
-remoteproc in Linux (late boot).
+```c
+struct sbiret get_remote_context_state(unsigned long context_id);
+```
+
+Check if the AMP context denoted by `context_id` was started by the HSS
+(early boot) or by another application (late boot), for example using the
+remoteproc framework in Linux.
 
 ### SBI_EXT_RPROC_START (FID 0x04)
 
-Load/Start the remote AMP context firmware firmware using the remoreproc
-framework in Linux.
+```c
+struct sbiret start_remote_context(unsigned long context_id, unsigned long payload_addr);
+```
+
+Load & start the remote AMP context denoted by `context_id`'s firmware, that
+has been loaded to `payload_addr` in memory.
 
 ### SBI_EXT_RPROC_STOP (FID 0x05)
 
-Stop the firmware running in the remote AMP context by setting the associated
-hart(s) in `wfi`.
+```c
+struct sbiret stop_remote_context(unsigned long context_id);
+```
+
+Stop the firmware running in the remote AMP context denoted by `context_id` by
+setting the harts associated to that context hart(s) in `wfi`.
 
 ### SBI_EXT_HSS_REBOOT (FID 0x10)
 
-Perform a reboot command.
+```c
+struct sbiret hss_reboot(void);
+```
+
+Reboot the HSS. This is particularly useful on harts that skip OpenSBI, as the
+HSM extension's eponymous state machine will not have correctly tracked the
+state of the hart correctly.
