@@ -18,15 +18,18 @@ allowing RISC-V support to play nicely across all BUs using RISC-V. The list
 below contains a list of existing Function IDs registered within Microchip's
 EID region:
 
-| Name                 | FID  | Supported Platform(s) |
-| -------------------- | ---- | ----------------------|
-| SBI_EXT_IHC_CTX_INIT | 0x00 | MPFS (G5SOC)          |
-| SBI_EXT_IHC_SEND     | 0x01 | MPFS (G5SOC)          |
-| SBI_EXT_IHC_RECEIVE  | 0x02 | MPFS (G5SOC)          |
-| SBI_EXT_RPROC_STATE  | 0x03 | MPFS (G5SOC)          |
-| SBI_EXT_RPROC_START  | 0x04 | MPFS (G5SOC)          |
-| SBI_EXT_RPROC_STOP   | 0x05 | MPFS (G5SOC)          |
-| SBI_EXT_HSS_REBOOT   | 0x10 | MPFS (G5SOC)          |
+| Name                          | FID  | Supported Platform(s) |
+| ----------------------------- | ---- | ----------------------|
+| SBI_EXT_IHC_CTX_INIT          | 0x00 | MPFS (G5SOC)          |
+| SBI_EXT_IHC_SEND              | 0x01 | MPFS (G5SOC)          |
+| SBI_EXT_IHC_RECEIVE           | 0x02 | MPFS (G5SOC)          |
+| SBI_EXT_RPROC_STATE           | 0x03 | MPFS (G5SOC)          |
+| SBI_EXT_RPROC_START           | 0x04 | MPFS (G5SOC)          |
+| SBI_EXT_RPROC_STOP            | 0x05 | MPFS (G5SOC)          |
+| SBI_EXT_HSS_REBOOT            | 0x10 | MPFS (G5SOC)          |
+| SBI_EXT_CRYPTO_INIT           | 0x11 | MPFS (G5SOC)          |
+| SBI_EXT_CRYPTO_SERVICES_PROBE | 0x12 | MPFS (G5SOC)          |
+| SBI_EXT_CRYPTO_SERVICES       | 0x13 | MPFS (G5SOC)          |
 
 ## Registering new Microchip Function IDs (FIDs)
 
@@ -128,3 +131,98 @@ struct sbiret hss_reboot(void);
 Reboot the HSS. This is particularly useful on harts that skip OpenSBI, as the
 HSM extension's eponymous state machine will not have correctly tracked the
 state of the hart correctly.
+
+### SBI_EXT_CRYPTO_INIT (FID 0x11)
+
+```c
+struct sbiret crypto_init(unsigned int toggle);
+```
+
+Initialise the cryptographic hardware engine and enable or disable the crypto clock based on the `toggle`.
+
+### SBI_EXT_CRYPTO_SERVICES_PROBE (FID 0x12)
+
+```c
+struct sbiret crypto_services_probe(unsigned long crypto_addr);
+```
+Send a crypto service probe request, to get the supported crypto services from the firmware and stored at `crypto_addr` in memory.
+
+The layout of `crypto_addr` in memory.
+
+```c
+struct mchp_crypto_info {
+	unsigned int   services;
+	unsigned long  cipher_algo;
+	unsigned int   aead_algo;
+	unsigned int   hash_algo;
+	unsigned long  mac_algo;
+	unsigned long  akcipher_algo;
+	unsigned int   nrbg_algo;
+};
+```
+#### Services:
+
+|bit-31:8|bit-7|bit-6|bit-5|bit-4|bit-3|bit-2|bit-1|bit-0|
+|:-------|:----|:----|:----|:----|:----|:----|:----|:----|
+|RESERVED|NRBG |ECDSA|DSA  |RSA  |MAC  |HASH |AEAD |AES  |
+
+
+#### Symmetric cipher(AES) algorithms(cipher_algo):
+
+|bit-63:5|bit-4|bit-3|bit-2|bit-1|bit-0|
+|:-------|:----|:----|:----|:----|:----|
+|RESERVED| CTR | CFB | OFB | CBC | ECB |
+
+
+#### AEAD algorithms(aead_algo):
+
+|bit-31:2|bit-1|bit-0|
+|:-------|:----|:----|
+|RESERVED|CCM  |GCM  |
+
+#### HASH algorithms(hash_algo):
+
+|bit-31:7|bit-6     |bit-5     |bit-4 |bit-3 |bit-2 |bit-1 |bit-0|
+|:-------|:---------|:---------|:-----|:-----|:-----|:-----|:----|
+|RESERVED|SHA512_256|SHA512_224|SHA512|SHA384|SHA256|SHA224|SHA1 |
+
+#### MAC algorithms(mac_algo):
+
+|bit-9:7 |bit-6     |bit-5     |bit-4 |bit-3 |bit-2 |bit-1 |bit-0|
+|:------ |:---------|:---------|:-----|:-----|:-----|:-----|:----|
+|RESERVED|SHA512_256|SHA512_224|SHA512|SHA384|SHA256|SHA224|SHA1 |
+
+|bit-63:14|bit-13 |bit-12    |bit-11    |bit-10    |
+|:--------|:------|:---------|:---------|:---------|
+|RESERVED |AESGMAC|AESCMAC256|AESCMAC192|AESCMAC128|
+
+#### Asymmetric cipher algorithms(akcipher_algo):
+
+|bit-63:5|bit-4|bit-3 |bit-2|bit-1|bit-0|
+|:-------|:----|:-----|:----|:----|:----|
+|RESERVED| ECDH| ECDSA| DH  | RSA | DSA |
+
+#### Random Number Generation(nrbg_algo):
+
+|bit-31:2|bit-1|bit-0|
+|:-------|:----|:----|
+|RESERVED|DRBG |NRBG |
+
+### SBI_EXT_CRYPTO_SERVICES (FID 0x013)
+
+```c
+struct sbiret crypto_services(unsigned int service, unsigned long crypto_addr);
+```
+Send a crypto service request, the `service` such as AES, AEAD, HASH, MAC, DSA, RSA, ECDSA, NRBG and related data located at `crypto_addr` in memory to the cryptographic hardware engine for encryption/decryption, hash, signature/verification.
+
+Example: The AES layout of `crypto_addr` in memory.
+
+```c
+struct mchp_crypto_aes_req {
+	unsigned long source_phys_addr;
+	unsigned long initialisation_vector_phys_addr;
+	unsigned long symmetric_key_phys_addr;
+	unsigned long destination_phys_addr;
+	unsigned long size_of_cipher_data;
+};
+```
