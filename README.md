@@ -30,6 +30,11 @@ EID region:
 | SBI_EXT_CRYPTO_INIT           | 0x11 | MPFS (G5SOC)          |
 | SBI_EXT_CRYPTO_SERVICES_PROBE | 0x12 | MPFS (G5SOC)          |
 | SBI_EXT_CRYPTO_SERVICES       | 0x13 | MPFS (G5SOC)          |
+| SBI_EXT_IPC_PROBE             | 0x100| MPFS (G5SOC)          |
+| SBI_EXT_IPC_CH_INIT           | 0x101| MPFS (G5SOC)          |
+| SBI_EXT_IPC_SEND              | 0x102| MPFS (G5SOC)          |
+| SBI_EXT_IPC_RECEIVE           | 0x103| MPFS (G5SOC)          |
+| SBI_EXT_IPC_STATUS            | 0x104| MPFS (G5SOC)          |
 
 ## Registering new Microchip Function IDs (FIDs)
 
@@ -226,3 +231,157 @@ struct mchp_crypto_aes_req {
 	unsigned long size_of_cipher_data;
 };
 ```
+
+### SBI_EXT_IPC_PROBE (FID 0x100)
+
+```c
+struct sbiret ipc_probe(unsigned long message_addr);
+```
+
+Send a probe request to get the following information about the IPC:
+
+- `hw_type`: specifies the IPC implementation available in the hardware
+- `num_channels`: specifies the number of IPC channels available in the hardware
+
+The request returns a struct located in `message_addr` which contains the following information:
+
+```c
+struct mchp_ipc_probe {
+    enum ipc_hw hw_type;
+    u8 num_channels;
+};
+```
+
+where `ipc_hw` is defined as shown below:
+
+```c
+enum ipc_hw {
+    MIV_IHC,
+    RESERVED1,
+    RESERVED2,
+};
+```
+
+### SBI_EXT_IPC_CH_INIT (FID 0x101)
+
+```c
+struct sbiret ipc_ch_init(unsigned long channel_id, unsigned long message_addr);
+```
+
+Initialise a communication channel within the Inter-Processor Communication (IPC) for the channel
+denoted by `channel_id`.
+
+The request returns a struct in `message_addr` containing the maximum message size in bytes of the
+corresponding channel:
+
+```c
+struct mchp_ipc_init {
+    u16 max_msg_size;
+};
+```
+
+### SBI_EXT_IPC_SEND (FID 0x102)
+
+```c
+struct sbiret ipc_send(unsigned long channel_id, unsigned long message_addr);
+```
+
+Send a message, located at `message_addr` address to the channel denoted
+by `channel_id` using the Inter-Processor Communication (IPC).
+
+The layout of `message_addr` in memory is:
+
+```c
+struct mchp_ipc_sbi_msg {
+    u64 buf_addr;
+    u16 size;
+    u8 irq_type;
+};
+```
+
+- `buf_addr`: specifies the physical address of the buffer where the data will be copied.
+- `size`: Indicates the maximum size (in bytes) of the data that can be stored in the buffer pointed to by `buf_addr`.
+- `irq_type`: Not applicable for sending messages. This field is only used when receiving messages (refer to SBI_EXT_IPC_RECEIVE for details).
+
+### SBI_EXT_IPC_RECEIVE (FID 0x103)
+
+```c
+struct sbiret ipc_receive(unsigned long channel_id, unsigned long message_addr);
+```
+
+Receive a message from the associated processor through a channel id denoted
+by `channel_id` using the Inter-Processor Communication (IPC).
+
+The request should contain a struct located in the address denoted by `message_addr` and should
+contain the following information:
+
+```c
+struct mchp_ipc_sbi_msg {
+    u64 buf_addr;
+    u16 size;
+    u8 irq_type;
+};
+```
+
+- `buf_addr`: physical address where the received data should be copied
+- `size`: Indicates the maximum size (in bytes) of the data that can be stored in the buffer pointed to by `buf_addr`.
+- `irq_type`: A mask representing the types of interrupts that triggered the reception of this message.
+
+The irq_type mask values are defined as follows:
+
+```c
+enum ipc_irq_type {
+    IPC_OPS_NOT_SUPPORTED    = 1,
+    IPC_MP_IRQ               = 2,
+    IPC_MC_IRQ               = 4,
+};
+```
+
+where `IPC_MP_IRQ` and `IPC_MC_IRQ` represent "message present" and "message clear" interrupts, respectively.
+
+The `IPC_OPS_NOT_SUPPORTED` mask value indicates that interrupt aggregation is not supported in the
+IPC implementation used.
+
+### SBI_EXT_IPC_STATUS (FID 0x104)
+
+```c
+struct sbiret ipc_get_status(unsigned long message_addr);
+```
+
+Note: This function ID is currently implemented for G5 SoC using the MIV_IHC IP. However,
+it can be extended by the user to other platforms if needed.
+
+#### MPFS (G5SOC) Implementation
+
+The request returns a struct in `message_addr` containing the message present and message clear
+interrupt status for all channels associated with a cluster:
+
+```c
+struct mchp_ipc_status {
+    u32 status;
+    u8 cluster;
+};
+```
+
+The `status` field is a 32-bit value that indicates the interrupt status for all channels associated
+to a cluster. The bits are organized in alternating format, where each pair of bits represents
+the status of the message present and message clear interrupts for each cluster/hart
+(from hart 0 to hart 5). Each cluster can have up to 5 fixed channels associated.
+
+| Bit   | Name                  |
+|-------|-----------------------|
+| 32:12 | RESERVED              |
+| 11    | MSG_CLEARED_ACK_HART5 |
+| 10    | MSG_CLEARED_MP_HART5  |
+| 9     | MSG_CLEARED_ACK_HART4 |
+| 8     | MSG_CLEARED_MP_HART4  |
+| 7     | MSG_CLEARED_ACK_HART3 |
+| 6     | MSG_CLEARED_MP_HART3  |
+| 5     | MSG_CLEARED_ACK_HART2 |
+| 4     | MSG_CLEARED_MP_HART2  |
+| 3     | MSG_CLEARED_ACK_HART1 |
+| 2     | MSG_CLEARED_MP_HART1  |
+| 1     | MSG_CLEARED_ACK_HART0 |
+| 0     | MSG_CLEARED_MP_HART0  |
+
+The `cluster` variable specifies the cluster instance that originated the interrupt.
